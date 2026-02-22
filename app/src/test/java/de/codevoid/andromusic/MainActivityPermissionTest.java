@@ -33,15 +33,16 @@ public class MainActivityPermissionTest {
 
         // Check that POST_NOTIFICATIONS permission was requested during onCreate
         // getLastRequestedPermission returns permissions from the most recent requestPermissions call
+        ShadowActivity.PermissionsRequest request = shadowActivity.getLastRequestedPermission();
+
         boolean notificationPermissionRequested = false;
-        for (ShadowActivity.PermissionsRequest request : shadowActivity.getPermissionsRequests()) {
+        if (request != null) {
             for (String perm : request.requestedPermissions) {
                 if (Manifest.permission.POST_NOTIFICATIONS.equals(perm)) {
                     notificationPermissionRequested = true;
                     break;
                 }
             }
-            if (notificationPermissionRequested) break;
         }
 
         assertTrue("MainActivity should request POST_NOTIFICATIONS permission on API 33+",

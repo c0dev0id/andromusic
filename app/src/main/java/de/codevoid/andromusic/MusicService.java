@@ -335,7 +335,6 @@ public class MusicService extends Service {
                     updatePlaybackState(PlaybackStateCompat.STATE_PLAYING);
                     updateMetadata();
                     updateNotification();
-                    startForeground(NOTIFICATION_ID, buildNotification());
                     if (trackChangeListener != null) {
                         trackChangeListener.onTrackChanged(currentIndex);
                         trackChangeListener.onPlayStateChanged(true);
@@ -436,8 +435,10 @@ public class MusicService extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL_ID, "Music Playback", NotificationManager.IMPORTANCE_DEFAULT);
             channel.setDescription("AndroMusic playback controls");
+            channel.setSound(null, null);
+            channel.enableVibration(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(channel);
         }
