@@ -1,4 +1,4 @@
-package com.example.andromusic;
+package de.codevoid.andromusic;
 
 import android.content.Context;
 import android.content.SharedPreferences;

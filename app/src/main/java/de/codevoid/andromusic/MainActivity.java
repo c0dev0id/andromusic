@@ -1,4 +1,4 @@
-package com.example.andromusic;
+package de.codevoid.andromusic;
 
 import android.Manifest;
 import android.content.ComponentName;
