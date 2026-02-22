@@ -18,6 +18,7 @@ import org.robolectric.shadows.ShadowNotificationManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +37,7 @@ public class NotificationSongChangeTest {
     private ServiceController<MusicService> serviceController;
     private NotificationManager notificationManager;
     private ShadowNotificationManager shadowNotificationManager;
+    private File tempDir;
 
     @Before
     public void setUp() {
@@ -54,6 +56,15 @@ public class NotificationSongChangeTest {
     @After
     public void tearDown() {
         serviceController.destroy();
+        if (tempDir != null && tempDir.exists()) {
+            File[] files = tempDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    f.delete();
+                }
+            }
+            tempDir.delete();
+        }
     }
 
     @Test
@@ -85,7 +96,7 @@ public class NotificationSongChangeTest {
     @Test
     public void buildNotification_showsArtistAndTitle() throws Exception {
         // Create a minimal test audio file (just needs to exist for the playlist)
-        File tempDir = new File(ApplicationProvider.getApplicationContext().getCacheDir(), "test_music");
+        tempDir = new File(ApplicationProvider.getApplicationContext().getCacheDir(), "test_music");
         tempDir.mkdirs();
         File testFile = new File(tempDir, "TestArtist - TestSong.mp3");
         FileOutputStream fos = new FileOutputStream(testFile);
@@ -96,22 +107,18 @@ public class NotificationSongChangeTest {
         playlist.add(testFile.getAbsolutePath());
 
         // Set playlist and trigger playback (this will call prepareAndPlay which updates notification)
-        // Since MediaPlayer won't actually work with a fake file, we test the notification
-        // structure by verifying the notification channel and initial notification
+        // MediaPlayer will fail with an IOException on a fake file, but the notification
+        // should still be posted via startForeground in onCreate
         try {
             musicService.setPlaylist(playlist, 0);
-        } catch (Exception e) {
-            // MediaPlayer will fail on fake file, but notification should still be posted
+        } catch (IOException e) {
+            // Expected: MediaPlayer cannot decode a fake audio file
         }
 
         // Verify notifications are present - the service always has a foreground notification
         List<Notification> notifications = shadowNotificationManager.getAllNotifications();
         assertTrue("Should have at least one notification after setting playlist",
                 notifications.size() > 0);
-
-        // Clean up
-        testFile.delete();
-        tempDir.delete();
     }
 
     @Test
