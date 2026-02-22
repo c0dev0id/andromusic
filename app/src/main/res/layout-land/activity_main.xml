@@ -15,6 +15,7 @@
         android:textSize="24sp"
         android:clickable="true"
         android:focusable="true"
+        android:background="?attr/selectableItemBackground"
         android:contentDescription="@string/buy_me_a_coffee" />
 
     <LinearLayout
