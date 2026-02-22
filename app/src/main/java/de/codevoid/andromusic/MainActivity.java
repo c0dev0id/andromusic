@@ -11,7 +11,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -60,6 +62,13 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onPlayStateChanged(boolean playing) {
                     runOnUiThread(() -> btnPlayPause.setText(playing ? "\u23F8" : "\u25B6"));
+                }
+                @Override
+                public void onPlaylistChanged(List<String> playlist, int currentIndex) {
+                    runOnUiThread(() -> {
+                        loadPlaylistIntoUI(playlist);
+                        updateUI(currentIndex);
+                    });
                 }
             });
             loadPlaylistIntoUI(musicService.getPlaylist());
@@ -140,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
 
         checkAndRequestPermissions();
         requestNotificationPermission();
+        requestBatteryOptimizationExemption();
         startAndBindService();
     }
 
@@ -180,6 +190,19 @@ public class MainActivity extends AppCompatActivity {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.POST_NOTIFICATIONS},
                         NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
+    }
+
+    // Battery optimization exemption is needed for continuous background music playback
+    @android.annotation.SuppressLint("BatteryLife")
+    private void requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
             }
         }
     }

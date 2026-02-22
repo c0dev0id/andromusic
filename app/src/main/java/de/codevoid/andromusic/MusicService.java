@@ -30,8 +30,8 @@ import androidx.media.app.NotificationCompat.MediaStyle;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 public class MusicService extends Service {
     private static final String TAG = "MusicService";
@@ -50,13 +50,12 @@ public class MusicService extends Service {
     private PreferencesManager prefsManager;
 
     private List<String> playlist = new ArrayList<>();
+    private List<String> originalPlaylist = new ArrayList<>();
     private int currentIndex = 0;
     private boolean isPlaying = false;
     private boolean pausedForTransientFocusLoss = false;
     private boolean shuffleEnabled = false;
     private Bitmap currentCoverArt;
-
-    private final Random random = new Random();
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = this::onAudioFocusChange;
 
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
@@ -73,6 +72,7 @@ public class MusicService extends Service {
     public interface OnTrackChangeListener {
         void onTrackChanged(int index);
         void onPlayStateChanged(boolean playing);
+        void onPlaylistChanged(List<String> playlist, int currentIndex);
     }
 
     private OnTrackChangeListener trackChangeListener;
@@ -91,9 +91,12 @@ public class MusicService extends Service {
         createNotificationChannel();
         setupMediaSession();
         playlist = prefsManager.loadPlaylist();
+        originalPlaylist = new ArrayList<>(playlist);
         currentIndex = prefsManager.loadTrackIndex();
         shuffleEnabled = prefsManager.loadShuffleEnabled();
         if (currentIndex >= playlist.size()) currentIndex = 0;
+        // Start foreground immediately to prevent service being killed on Android 8+
+        startForeground(NOTIFICATION_ID, buildNotification());
     }
 
     @Override
@@ -138,8 +141,19 @@ public class MusicService extends Service {
         super.onDestroy();
     }
 
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Ensure the service keeps running when the app is swiped from recents
+        if (isPlaying) {
+            return;
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
     private void setupMediaSession() {
         mediaSession = new MediaSessionCompat(this, TAG);
+        mediaSession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS
+                | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
             public void onPlay() { play(); }
@@ -152,12 +166,15 @@ public class MusicService extends Service {
             @Override
             public void onSeekTo(long pos) { seekTo((int) pos); }
             @Override
-            public void onStop() { stopSelf(); }
+            public void onStop() { pause(); }
         });
         mediaSession.setActive(true);
+        // Set initial playback state so the session can receive external events immediately
+        updatePlaybackState(PlaybackStateCompat.STATE_NONE);
     }
 
     public void setPlaylist(List<String> newPlaylist, int startIndex) {
+        originalPlaylist = new ArrayList<>(newPlaylist);
         playlist = new ArrayList<>(newPlaylist);
         currentIndex = startIndex;
         prefsManager.savePlaylist(playlist);
@@ -197,20 +214,7 @@ public class MusicService extends Service {
 
     public void next() {
         if (playlist.isEmpty()) return;
-        if (shuffleEnabled) {
-            int newIndex;
-            if (playlist.size() == 1) {
-                newIndex = 0;
-            } else {
-                do {
-                    newIndex = random.nextInt(playlist.size());
-                } while (newIndex == currentIndex);
-            }
-            currentIndex = newIndex;
-        } else {
-            // Wraps around to 0 when reaching the end of the playlist
-            currentIndex = (currentIndex + 1) % playlist.size();
-        }
+        currentIndex = (currentIndex + 1) % playlist.size();
         prefsManager.saveTrackIndex(currentIndex);
         prepareAndPlay(0);
     }
@@ -220,19 +224,7 @@ public class MusicService extends Service {
         if (mediaPlayer != null && mediaPlayer.getCurrentPosition() > 3000) {
             seekTo(0);
         } else {
-            if (shuffleEnabled) {
-                int newIndex;
-                if (playlist.size() == 1) {
-                    newIndex = 0;
-                } else {
-                    do {
-                        newIndex = random.nextInt(playlist.size());
-                    } while (newIndex == currentIndex);
-                }
-                currentIndex = newIndex;
-            } else {
-                currentIndex = (currentIndex - 1 + playlist.size()) % playlist.size();
-            }
+            currentIndex = (currentIndex - 1 + playlist.size()) % playlist.size();
             prefsManager.saveTrackIndex(currentIndex);
             prepareAndPlay(0);
         }
@@ -254,6 +246,24 @@ public class MusicService extends Service {
     public void setShuffleEnabled(boolean enabled) {
         shuffleEnabled = enabled;
         prefsManager.saveShuffleEnabled(enabled);
+        if (playlist.isEmpty()) return;
+        String currentTrack = playlist.get(currentIndex);
+        if (enabled) {
+            // Move current track to index 0, then shuffle the rest
+            playlist.remove(currentIndex);
+            Collections.shuffle(playlist);
+            playlist.add(0, currentTrack);
+            currentIndex = 0;
+        } else {
+            playlist = new ArrayList<>(originalPlaylist);
+            currentIndex = playlist.indexOf(currentTrack);
+            if (currentIndex < 0) currentIndex = 0;
+        }
+        prefsManager.savePlaylist(playlist);
+        prefsManager.saveTrackIndex(currentIndex);
+        if (trackChangeListener != null) {
+            trackChangeListener.onPlaylistChanged(playlist, currentIndex);
+        }
     }
 
     public boolean isShuffleEnabled() {
@@ -378,6 +388,8 @@ public class MusicService extends Service {
         PlaybackStateCompat.Builder builder = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY |
                         PlaybackStateCompat.ACTION_PAUSE |
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                        PlaybackStateCompat.ACTION_STOP |
                         PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
                         PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
                         PlaybackStateCompat.ACTION_SEEK_TO)
