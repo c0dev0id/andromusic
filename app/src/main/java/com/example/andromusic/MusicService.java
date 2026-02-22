@@ -255,6 +255,16 @@ public class MusicService extends Service {
         }
     }
 
+    private void onAudioFocusChange(int focusChange) {
+        if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+            play();
+        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS
+                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            // Pause for both permanent loss and transient loss (e.g. phone call, navigation prompt)
+            pause();
+        }
+    }
+
     private boolean requestAudioFocus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
@@ -262,20 +272,11 @@ public class MusicService extends Service {
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .build())
-                    .setOnAudioFocusChangeListener(focusChange -> {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) pause();
-                        else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) pause();
-                        else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) play();
-                    })
+                    .setOnAudioFocusChangeListener(this::onAudioFocusChange)
                     .build();
             return audioManager.requestAudioFocus(audioFocusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         } else {
-            AudioManager.OnAudioFocusChangeListener legacyListener = focusChange -> {
-                if (focusChange == AudioManager.AUDIOFOCUS_LOSS) pause();
-                else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) pause();
-                else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) play();
-            };
-            return audioManager.requestAudioFocus(legacyListener, AudioManager.STREAM_MUSIC,
+            return audioManager.requestAudioFocus(this::onAudioFocusChange, AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         }
     }
