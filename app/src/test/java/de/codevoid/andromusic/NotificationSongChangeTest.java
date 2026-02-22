@@ -18,7 +18,6 @@ import org.robolectric.shadows.ShadowNotificationManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,7 +110,7 @@ public class NotificationSongChangeTest {
         // should still be posted via startForeground in onCreate
         try {
             musicService.setPlaylist(playlist, 0);
-        } catch (IOException e) {
+        } catch (Exception e) {
             // Expected: MediaPlayer cannot decode a fake audio file
         }
 

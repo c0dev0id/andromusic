@@ -17,7 +17,6 @@ import android.os.PowerManager;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -130,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
         btnShuffle = findViewById(R.id.btn_shuffle);
         ImageButton btnPrev = findViewById(R.id.btn_prev);
         ImageButton btnNext = findViewById(R.id.btn_next);
-        Button btnPickDir = findViewById(R.id.btn_pick_dir);
+        ImageButton btnPickDir = findViewById(R.id.btn_pick_dir);
         lvPlaylist = findViewById(R.id.lv_playlist);
         sbProgress = findViewById(R.id.sb_progress);
         tvElapsedTime = findViewById(R.id.tv_elapsed_time);
