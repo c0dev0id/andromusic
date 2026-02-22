@@ -1,4 +1,4 @@
-package com.example.andromusic;
+package de.codevoid.andromusic;
 
 import java.io.File;
 import java.util.ArrayList;

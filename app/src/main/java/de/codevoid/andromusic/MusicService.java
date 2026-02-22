@@ -1,4 +1,4 @@
-package com.example.andromusic;
+package de.codevoid.andromusic;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -38,9 +38,9 @@ public class MusicService extends Service {
     private static final String CHANNEL_ID = "MusicServiceChannel";
     private static final int NOTIFICATION_ID = 1;
 
-    public static final String ACTION_PLAY_PAUSE = "com.example.andromusic.PLAY_PAUSE";
-    public static final String ACTION_NEXT = "com.example.andromusic.NEXT";
-    public static final String ACTION_PREV = "com.example.andromusic.PREV";
+    public static final String ACTION_PLAY_PAUSE = "de.codevoid.andromusic.PLAY_PAUSE";
+    public static final String ACTION_NEXT = "de.codevoid.andromusic.NEXT";
+    public static final String ACTION_PREV = "de.codevoid.andromusic.PREV";
 
     private final IBinder binder = new MusicBinder();
     private MediaPlayer mediaPlayer;
