@@ -48,6 +48,7 @@ public class MusicService extends Service {
     private List<String> playlist = new ArrayList<>();
     private int currentIndex = 0;
     private boolean isPlaying = false;
+    private boolean pausedForTransientFocusLoss = false;
 
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
     private final Runnable saveRunnable = new Runnable() {
@@ -257,10 +258,17 @@ public class MusicService extends Service {
 
     private void onAudioFocusChange(int focusChange) {
         if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-            play();
-        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS
-                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-            // Pause for both permanent loss and transient loss (e.g. phone call, navigation prompt)
+            if (pausedForTransientFocusLoss) {
+                play();
+                pausedForTransientFocusLoss = false;
+            }
+        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+            if (isPlaying) {
+                pausedForTransientFocusLoss = true;
+                pause();
+            }
+        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+            pausedForTransientFocusLoss = false;
             pause();
         }
     }
@@ -381,7 +389,7 @@ public class MusicService extends Service {
             try {
                 prefsManager.savePosition(mediaPlayer.getCurrentPosition());
             } catch (IllegalStateException e) {
-                // ignore
+                Log.w(TAG, "MediaPlayer in invalid state when saving position", e);
             }
         }
     }
