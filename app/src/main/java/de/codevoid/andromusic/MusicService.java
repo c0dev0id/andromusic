@@ -56,6 +56,9 @@ public class MusicService extends Service {
     private boolean pausedForTransientFocusLoss = false;
     private boolean shuffleEnabled = false;
     private Bitmap currentCoverArt;
+    private String currentTitle;
+    private String currentArtist;
+    private String currentAlbum;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = this::onAudioFocusChange;
 
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
@@ -270,16 +273,32 @@ public class MusicService extends Service {
         return shuffleEnabled;
     }
 
-    private Bitmap extractCoverArt(String filePath) {
+    private void extractTrackInfo(String filePath) {
+        if (currentCoverArt != null) {
+            currentCoverArt.recycle();
+            currentCoverArt = null;
+        }
+        // Default title from filename
+        String fallbackTitle = new File(filePath).getName();
+        int dot = fallbackTitle.lastIndexOf('.');
+        if (dot > 0) fallbackTitle = fallbackTitle.substring(0, dot);
+
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             retriever.setDataSource(filePath);
+            currentArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            currentAlbum = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM);
+            String metaTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
+            currentTitle = (metaTitle != null && !metaTitle.trim().isEmpty()) ? metaTitle : fallbackTitle;
             byte[] art = retriever.getEmbeddedPicture();
             if (art != null) {
-                return BitmapFactory.decodeByteArray(art, 0, art.length);
+                currentCoverArt = BitmapFactory.decodeByteArray(art, 0, art.length);
             }
         } catch (Exception e) {
-            Log.w(TAG, "Failed to extract cover art from: " + filePath, e);
+            Log.w(TAG, "Failed to extract track info from: " + filePath, e);
+            currentTitle = fallbackTitle;
+            currentArtist = null;
+            currentAlbum = null;
         } finally {
             try {
                 retriever.release();
@@ -287,7 +306,6 @@ public class MusicService extends Service {
                 Log.w(TAG, "Error releasing MediaMetadataRetriever", e);
             }
         }
-        return null;
     }
 
     private void prepareAndPlay(int seekPosition) {
@@ -299,11 +317,8 @@ public class MusicService extends Service {
         try {
             String filePath = playlist.get(currentIndex);
 
-            // Extract cover art for the new track
-            if (currentCoverArt != null) {
-                currentCoverArt.recycle();
-            }
-            currentCoverArt = extractCoverArt(filePath);
+            // Extract cover art and metadata for the new track
+            extractTrackInfo(filePath);
 
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
@@ -401,15 +416,17 @@ public class MusicService extends Service {
 
     private void updateMetadata() {
         if (playlist.isEmpty()) return;
-        String path = playlist.get(currentIndex);
-        String title = new File(path).getName();
-        // strip extension
-        int dot = title.lastIndexOf('.');
-        if (dot > 0) title = title.substring(0, dot);
         MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE,
+                        currentTitle != null ? currentTitle : "Unknown")
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION,
                         mediaPlayer != null ? mediaPlayer.getDuration() : 0);
+        if (currentArtist != null) {
+            builder.putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist);
+        }
+        if (currentAlbum != null) {
+            builder.putString(MediaMetadataCompat.METADATA_KEY_ALBUM, currentAlbum);
+        }
         if (currentCoverArt != null) {
             builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentCoverArt);
         }
@@ -443,20 +460,15 @@ public class MusicService extends Service {
         PendingIntent nextPending = PendingIntent.getService(this, 3,
                 nextIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        String title = "AndroMusic";
-        if (!playlist.isEmpty() && currentIndex < playlist.size()) {
-            String path = playlist.get(currentIndex);
-            title = new File(path).getName();
-            int dot = title.lastIndexOf('.');
-            if (dot > 0) title = title.substring(0, dot);
-        }
+        String title = currentTitle != null ? currentTitle : "AndroMusic";
+        String artist = currentArtist != null ? currentArtist : "AndroMusic";
 
         int playPauseIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
         String playPauseLabel = isPlaying ? "Pause" : "Play";
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
-                .setContentText("AndroMusic")
+                .setContentText(artist)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentIntent(contentPendingIntent)
                 .setTicker("Now playing: " + title)
