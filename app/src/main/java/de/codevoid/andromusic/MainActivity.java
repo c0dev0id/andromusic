@@ -193,6 +193,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        TextView btnCoffee = findViewById(R.id.btn_coffee);
+        btnCoffee.setOnClickListener(v -> {
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/codevoid"));
+            startActivity(browserIntent);
+        });
+
         checkAndRequestPermissions();
         requestNotificationPermission();
         requestBatteryOptimizationExemption();
