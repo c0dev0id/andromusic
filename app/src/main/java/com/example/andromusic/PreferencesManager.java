@@ -15,6 +15,7 @@ public class PreferencesManager {
     private static final String KEY_PLAYLIST = "playlist";
     private static final String KEY_TRACK_INDEX = "track_index";
     private static final String KEY_POSITION = "position_ms";
+    private static final String KEY_SHUFFLE = "shuffle_enabled";
 
     private final SharedPreferences prefs;
 
@@ -67,5 +68,13 @@ public class PreferencesManager {
 
     public int loadPosition() {
         return prefs.getInt(KEY_POSITION, 0);
+    }
+
+    public void saveShuffleEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_SHUFFLE, enabled).apply();
+    }
+
+    public boolean loadShuffleEnabled() {
+        return prefs.getBoolean(KEY_SHUFFLE, false);
     }
 }

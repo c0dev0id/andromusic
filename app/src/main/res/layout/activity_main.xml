@@ -29,6 +29,17 @@
             android:textSize="12sp" />
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/iv_cover_art"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:scaleType="centerCrop"
+        android:contentDescription="Album cover art"
+        android:background="@color/divider" />
+
     <TextView
         android:id="@+id/tv_current_track"
         android:layout_width="match_parent"
@@ -39,6 +50,7 @@
         android:textStyle="bold"
         android:maxLines="1"
         android:ellipsize="end"
+        android:gravity="center"
         android:textColor="@color/colorPrimary" />
 
     <ListView
@@ -57,11 +69,19 @@
         android:padding="8dp">
 
         <Button
+            android:id="@+id/btn_shuffle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/shuffle_off"
+            android:textSize="14sp" />
+
+        <Button
             android:id="@+id/btn_prev"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="⏮"
+            android:text="\u23EE"
             android:textSize="20sp" />
 
         <Button
@@ -69,7 +89,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="▶"
+            android:text="\u25B6"
             android:textSize="20sp" />
 
         <Button
@@ -77,7 +97,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="⏭"
+            android:text="\u23ED"
             android:textSize="20sp" />
     </LinearLayout>
 </LinearLayout>

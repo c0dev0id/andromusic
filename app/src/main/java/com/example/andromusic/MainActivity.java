@@ -6,15 +6,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.provider.DocumentsContract;
-import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -31,13 +31,16 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 101;
 
     private MusicService musicService;
     private boolean serviceBound = false;
     private PreferencesManager prefsManager;
 
+    private ImageView ivCoverArt;
     private TextView tvCurrentTrack;
     private Button btnPlayPause;
+    private Button btnShuffle;
     private ListView lvPlaylist;
     private ArrayAdapter<String> playlistAdapter;
     private List<String> displayNames = new ArrayList<>();
@@ -56,12 +59,13 @@ public class MainActivity extends AppCompatActivity {
                 }
                 @Override
                 public void onPlayStateChanged(boolean playing) {
-                    runOnUiThread(() -> btnPlayPause.setText(playing ? "⏸" : "▶"));
+                    runOnUiThread(() -> btnPlayPause.setText(playing ? "\u23F8" : "\u25B6"));
                 }
             });
             loadPlaylistIntoUI(musicService.getPlaylist());
             updateUI(musicService.getCurrentIndex());
-            btnPlayPause.setText(musicService.isPlaying() ? "⏸" : "▶");
+            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            updateShuffleButton(musicService.isShuffleEnabled());
         }
 
         @Override
@@ -92,8 +96,10 @@ public class MainActivity extends AppCompatActivity {
 
         prefsManager = new PreferencesManager(this);
 
+        ivCoverArt = findViewById(R.id.iv_cover_art);
         tvCurrentTrack = findViewById(R.id.tv_current_track);
         btnPlayPause = findViewById(R.id.btn_play_pause);
+        btnShuffle = findViewById(R.id.btn_shuffle);
         Button btnPrev = findViewById(R.id.btn_prev);
         Button btnNext = findViewById(R.id.btn_next);
         Button btnPickDir = findViewById(R.id.btn_pick_dir);
@@ -124,7 +130,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        btnShuffle.setOnClickListener(v -> {
+            if (serviceBound) {
+                boolean newState = !musicService.isShuffleEnabled();
+                musicService.setShuffleEnabled(newState);
+                updateShuffleButton(newState);
+            }
+        });
+
         checkAndRequestPermissions();
+        requestNotificationPermission();
         startAndBindService();
     }
 
@@ -139,7 +154,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void startAndBindService() {
         Intent intent = new Intent(this, MusicService.class);
-        startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -152,6 +171,17 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         return true;
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
     }
 
     @Override
@@ -234,7 +264,22 @@ public class MainActivity extends AppCompatActivity {
             lvPlaylist.smoothScrollToPosition(index);
         }
         if (serviceBound) {
-            btnPlayPause.setText(musicService.isPlaying() ? "⏸" : "▶");
+            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            updateCoverArt();
         }
+    }
+
+    private void updateCoverArt() {
+        if (!serviceBound) return;
+        Bitmap coverArt = musicService.getCurrentCoverArt();
+        if (coverArt != null) {
+            ivCoverArt.setImageBitmap(coverArt);
+        } else {
+            ivCoverArt.setImageResource(android.R.drawable.ic_menu_gallery);
+        }
+    }
+
+    private void updateShuffleButton(boolean shuffleOn) {
+        btnShuffle.setText(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off);
     }
 }
