@@ -249,12 +249,16 @@ public class MusicService extends Service {
         if (playlist.isEmpty()) return;
         String currentTrack = playlist.get(currentIndex);
         if (enabled) {
+            // Move current track to index 0, then shuffle the rest
+            playlist.remove(currentIndex);
             Collections.shuffle(playlist);
+            playlist.add(0, currentTrack);
+            currentIndex = 0;
         } else {
             playlist = new ArrayList<>(originalPlaylist);
+            currentIndex = playlist.indexOf(currentTrack);
+            if (currentIndex < 0) currentIndex = 0;
         }
-        currentIndex = playlist.indexOf(currentTrack);
-        if (currentIndex < 0) currentIndex = 0;
         prefsManager.savePlaylist(playlist);
         prefsManager.saveTrackIndex(currentIndex);
         if (trackChangeListener != null) {

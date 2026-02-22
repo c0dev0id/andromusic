@@ -194,6 +194,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Battery optimization exemption is needed for continuous background music playback
     @android.annotation.SuppressLint("BatteryLife")
     private void requestBatteryOptimizationExemption() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

@@ -49,7 +49,7 @@
                 android:layout_height="160dp"
                 android:layout_gravity="center_horizontal"
                 android:scaleType="centerCrop"
-                android:contentDescription="Album cover art"
+                android:contentDescription="@string/album_cover_art_description"
                 android:background="@color/divider" />
 
             <TextView
