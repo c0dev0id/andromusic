@@ -270,7 +270,12 @@ public class MusicService extends Service {
                     .build();
             return audioManager.requestAudioFocus(audioFocusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         } else {
-            return audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
+            AudioManager.OnAudioFocusChangeListener legacyListener = focusChange -> {
+                if (focusChange == AudioManager.AUDIOFOCUS_LOSS) pause();
+                else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) pause();
+                else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) play();
+            };
+            return audioManager.requestAudioFocus(legacyListener, AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         }
     }

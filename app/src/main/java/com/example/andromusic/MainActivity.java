@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnPickDir = findViewById(R.id.btn_pick_dir);
         lvPlaylist = findViewById(R.id.lv_playlist);
 
-        playlistAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_activated_1, displayNames);
+        playlistAdapter = new ArrayAdapter<>(this, R.layout.item_track, displayNames);
         lvPlaylist.setAdapter(playlistAdapter);
         lvPlaylist.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
 
