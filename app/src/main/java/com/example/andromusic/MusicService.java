@@ -6,9 +6,12 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Binder;
 import android.os.Build;
@@ -28,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class MusicService extends Service {
     private static final String TAG = "MusicService";
@@ -49,6 +53,10 @@ public class MusicService extends Service {
     private int currentIndex = 0;
     private boolean isPlaying = false;
     private boolean pausedForTransientFocusLoss = false;
+    private boolean shuffleEnabled = false;
+    private Bitmap currentCoverArt;
+
+    private final Random random = new Random();
 
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
     private final Runnable saveRunnable = new Runnable() {
@@ -83,6 +91,7 @@ public class MusicService extends Service {
         setupMediaSession();
         playlist = prefsManager.loadPlaylist();
         currentIndex = prefsManager.loadTrackIndex();
+        shuffleEnabled = prefsManager.loadShuffleEnabled();
         if (currentIndex >= playlist.size()) currentIndex = 0;
     }
 
@@ -121,6 +130,10 @@ public class MusicService extends Service {
             mediaSession.release();
         }
         abandonAudioFocus();
+        if (currentCoverArt != null) {
+            currentCoverArt.recycle();
+            currentCoverArt = null;
+        }
         super.onDestroy();
     }
 
@@ -183,7 +196,20 @@ public class MusicService extends Service {
 
     public void next() {
         if (playlist.isEmpty()) return;
-        currentIndex = (currentIndex + 1) % playlist.size();
+        if (shuffleEnabled) {
+            int newIndex;
+            if (playlist.size() == 1) {
+                newIndex = 0;
+            } else {
+                do {
+                    newIndex = random.nextInt(playlist.size());
+                } while (newIndex == currentIndex);
+            }
+            currentIndex = newIndex;
+        } else {
+            // Wraps around to 0 when reaching the end of the playlist
+            currentIndex = (currentIndex + 1) % playlist.size();
+        }
         prefsManager.saveTrackIndex(currentIndex);
         prepareAndPlay(0);
     }
@@ -193,7 +219,19 @@ public class MusicService extends Service {
         if (mediaPlayer != null && mediaPlayer.getCurrentPosition() > 3000) {
             seekTo(0);
         } else {
-            currentIndex = (currentIndex - 1 + playlist.size()) % playlist.size();
+            if (shuffleEnabled) {
+                int newIndex;
+                if (playlist.size() == 1) {
+                    newIndex = 0;
+                } else {
+                    do {
+                        newIndex = random.nextInt(playlist.size());
+                    } while (newIndex == currentIndex);
+                }
+                currentIndex = newIndex;
+            } else {
+                currentIndex = (currentIndex - 1 + playlist.size()) % playlist.size();
+            }
             prefsManager.saveTrackIndex(currentIndex);
             prepareAndPlay(0);
         }
@@ -212,6 +250,35 @@ public class MusicService extends Service {
         }
     }
 
+    public void setShuffleEnabled(boolean enabled) {
+        shuffleEnabled = enabled;
+        prefsManager.saveShuffleEnabled(enabled);
+    }
+
+    public boolean isShuffleEnabled() {
+        return shuffleEnabled;
+    }
+
+    private Bitmap extractCoverArt(String filePath) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(filePath);
+            byte[] art = retriever.getEmbeddedPicture();
+            if (art != null) {
+                return BitmapFactory.decodeByteArray(art, 0, art.length);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to extract cover art from: " + filePath, e);
+        } finally {
+            try {
+                retriever.release();
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing MediaMetadataRetriever", e);
+            }
+        }
+        return null;
+    }
+
     private void prepareAndPlay(int seekPosition) {
         if (playlist.isEmpty()) return;
         if (mediaPlayer != null) {
@@ -219,13 +286,21 @@ public class MusicService extends Service {
             mediaPlayer = null;
         }
         try {
+            String filePath = playlist.get(currentIndex);
+
+            // Extract cover art for the new track
+            if (currentCoverArt != null) {
+                currentCoverArt.recycle();
+            }
+            currentCoverArt = extractCoverArt(filePath);
+
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
             mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                     .setUsage(AudioAttributes.USAGE_MEDIA)
                     .build());
-            mediaPlayer.setDataSource(playlist.get(currentIndex));
+            mediaPlayer.setDataSource(filePath);
             mediaPlayer.setOnPreparedListener(mp -> {
                 if (seekPosition > 0) mp.seekTo(seekPosition);
                 if (requestAudioFocus()) {
@@ -243,6 +318,7 @@ public class MusicService extends Service {
                     saveHandler.postDelayed(saveRunnable, 5000);
                 }
             });
+            // On track completion, advance to next (wraps around via next())
             mediaPlayer.setOnCompletionListener(mp -> next());
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
@@ -315,11 +391,14 @@ public class MusicService extends Service {
         // strip extension
         int dot = title.lastIndexOf('.');
         if (dot > 0) title = title.substring(0, dot);
-        mediaSession.setMetadata(new MediaMetadataCompat.Builder()
+        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION,
-                        mediaPlayer != null ? mediaPlayer.getDuration() : 0)
-                .build());
+                        mediaPlayer != null ? mediaPlayer.getDuration() : 0);
+        if (currentCoverArt != null) {
+            builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentCoverArt);
+        }
+        mediaSession.setMetadata(builder.build());
     }
 
     private void createNotificationChannel() {
@@ -360,11 +439,12 @@ public class MusicService extends Service {
         int playPauseIcon = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
         String playPauseLabel = isPlaying ? "Pause" : "Play";
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText("AndroMusic")
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentIntent(contentPendingIntent)
+                .setTicker("Now playing: " + title)
                 .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending)
                 .addAction(playPauseIcon, playPauseLabel, playPausePending)
                 .addAction(android.R.drawable.ic_media_next, "Next", nextPending)
@@ -372,8 +452,13 @@ public class MusicService extends Service {
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2))
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setOngoing(isPlaying)
-                .build();
+                .setOngoing(isPlaying);
+
+        if (currentCoverArt != null) {
+            builder.setLargeIcon(currentCoverArt);
+        }
+
+        return builder.build();
     }
 
     private void updateNotification() {
@@ -397,6 +482,7 @@ public class MusicService extends Service {
     public List<String> getPlaylist() { return playlist; }
     public int getCurrentIndex() { return currentIndex; }
     public boolean isPlaying() { return isPlaying; }
+    public Bitmap getCurrentCoverArt() { return currentCoverArt; }
     public int getCurrentPosition() {
         return mediaPlayer != null ? mediaPlayer.getCurrentPosition() : 0;
     }
