@@ -45,9 +45,9 @@
 
             <ImageView
                 android:id="@+id/iv_cover_art"
-                android:layout_width="160dp"
-                android:layout_height="160dp"
-                android:layout_gravity="center_horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
                 android:scaleType="centerCrop"
                 android:contentDescription="@string/album_cover_art_description"
                 android:background="@color/divider" />
@@ -72,7 +72,11 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:divider="@color/divider"
-            android:dividerHeight="1dp" />
+            android:dividerHeight="1dp"
+            android:scrollbars="vertical"
+            android:scrollbarSize="16dp"
+            android:scrollbarThumbVertical="@drawable/scrollbar_thumb"
+            android:fastScrollEnabled="true" />
     </LinearLayout>
 
     <LinearLayout
@@ -82,36 +86,44 @@
         android:gravity="center"
         android:padding="4dp">
 
-        <Button
+        <ImageButton
             android:id="@+id/btn_shuffle"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
-            android:text="@string/shuffle_off"
-            android:textSize="14sp" />
+            android:src="@drawable/ic_shuffle_off"
+            android:scaleType="fitCenter"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/shuffle_off" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btn_prev"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
-            android:text="\u23EE"
-            android:textSize="20sp" />
+            android:src="@drawable/ic_prev"
+            android:scaleType="fitCenter"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/prev_track" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btn_play_pause"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
-            android:text="\u25B6"
-            android:textSize="20sp" />
+            android:src="@drawable/ic_play"
+            android:scaleType="fitCenter"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/play_pause" />
 
-        <Button
+        <ImageButton
             android:id="@+id/btn_next"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
-            android:text="\u23ED"
-            android:textSize="20sp" />
+            android:src="@drawable/ic_next"
+            android:scaleType="fitCenter"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/next_track" />
     </LinearLayout>
 </LinearLayout>

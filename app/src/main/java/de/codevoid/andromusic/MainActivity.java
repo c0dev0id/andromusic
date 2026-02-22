@@ -15,7 +15,7 @@ import android.os.PowerManager;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -41,8 +41,8 @@ public class MainActivity extends AppCompatActivity {
 
     private ImageView ivCoverArt;
     private TextView tvCurrentTrack;
-    private Button btnPlayPause;
-    private Button btnShuffle;
+    private ImageButton btnPlayPause;
+    private ImageButton btnShuffle;
     private ListView lvPlaylist;
     private ArrayAdapter<String> playlistAdapter;
     private List<String> displayNames = new ArrayList<>();
@@ -61,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 @Override
                 public void onPlayStateChanged(boolean playing) {
-                    runOnUiThread(() -> btnPlayPause.setText(playing ? "\u23F8" : "\u25B6"));
+                    runOnUiThread(() -> btnPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play));
                 }
                 @Override
                 public void onPlaylistChanged(List<String> playlist, int currentIndex) {
@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
             });
             loadPlaylistIntoUI(musicService.getPlaylist());
             updateUI(musicService.getCurrentIndex());
-            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            btnPlayPause.setImageResource(musicService.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
             updateShuffleButton(musicService.isShuffleEnabled());
         }
 
@@ -109,8 +109,8 @@ public class MainActivity extends AppCompatActivity {
         tvCurrentTrack = findViewById(R.id.tv_current_track);
         btnPlayPause = findViewById(R.id.btn_play_pause);
         btnShuffle = findViewById(R.id.btn_shuffle);
-        Button btnPrev = findViewById(R.id.btn_prev);
-        Button btnNext = findViewById(R.id.btn_next);
+        ImageButton btnPrev = findViewById(R.id.btn_prev);
+        ImageButton btnNext = findViewById(R.id.btn_next);
         Button btnPickDir = findViewById(R.id.btn_pick_dir);
         lvPlaylist = findViewById(R.id.lv_playlist);
 
@@ -287,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
             lvPlaylist.smoothScrollToPosition(index);
         }
         if (serviceBound) {
-            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            btnPlayPause.setImageResource(musicService.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
             updateCoverArt();
         }
     }
@@ -303,6 +303,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateShuffleButton(boolean shuffleOn) {
-        btnShuffle.setText(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off);
+        btnShuffle.setImageResource(shuffleOn ? R.drawable.ic_shuffle_on : R.drawable.ic_shuffle_off);
+        btnShuffle.setContentDescription(getString(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off));
     }
 }
