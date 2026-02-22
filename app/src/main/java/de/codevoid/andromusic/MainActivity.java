@@ -193,6 +193,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        TextView btnCoffee = findViewById(R.id.btn_coffee);
+        btnCoffee.setOnClickListener(v -> {
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/codevoid"));
+                startActivity(browserIntent);
+            } catch (android.content.ActivityNotFoundException e) {
+                Toast.makeText(this, "No browser available", Toast.LENGTH_SHORT).show();
+            }
+        });
+
         checkAndRequestPermissions();
         requestNotificationPermission();
         requestBatteryOptimizationExemption();
