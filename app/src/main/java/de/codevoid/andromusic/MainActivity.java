@@ -10,14 +10,18 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -41,12 +45,27 @@ public class MainActivity extends AppCompatActivity {
 
     private ImageView ivCoverArt;
     private TextView tvCurrentTrack;
-    private Button btnPlayPause;
-    private Button btnShuffle;
+    private ImageButton btnPlayPause;
+    private ImageButton btnShuffle;
+    private SeekBar sbProgress;
+    private TextView tvElapsedTime;
+    private TextView tvRemainingTime;
     private ListView lvPlaylist;
     private ArrayAdapter<String> playlistAdapter;
     private List<String> displayNames = new ArrayList<>();
     private List<String> filePaths = new ArrayList<>();
+
+    private boolean isUserSeeking = false;
+    private final Handler progressHandler = new Handler(Looper.getMainLooper());
+    private final Runnable progressRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (serviceBound && !isUserSeeking) {
+                updateProgressBar();
+            }
+            progressHandler.postDelayed(this, 500);
+        }
+    };
 
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
@@ -61,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 @Override
                 public void onPlayStateChanged(boolean playing) {
-                    runOnUiThread(() -> btnPlayPause.setText(playing ? "\u23F8" : "\u25B6"));
+                    runOnUiThread(() -> btnPlayPause.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play));
                 }
                 @Override
                 public void onPlaylistChanged(List<String> playlist, int currentIndex) {
@@ -73,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
             });
             loadPlaylistIntoUI(musicService.getPlaylist());
             updateUI(musicService.getCurrentIndex());
-            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            btnPlayPause.setImageResource(musicService.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
             updateShuffleButton(musicService.isShuffleEnabled());
         }
 
@@ -109,10 +128,35 @@ public class MainActivity extends AppCompatActivity {
         tvCurrentTrack = findViewById(R.id.tv_current_track);
         btnPlayPause = findViewById(R.id.btn_play_pause);
         btnShuffle = findViewById(R.id.btn_shuffle);
-        Button btnPrev = findViewById(R.id.btn_prev);
-        Button btnNext = findViewById(R.id.btn_next);
+        ImageButton btnPrev = findViewById(R.id.btn_prev);
+        ImageButton btnNext = findViewById(R.id.btn_next);
         Button btnPickDir = findViewById(R.id.btn_pick_dir);
         lvPlaylist = findViewById(R.id.lv_playlist);
+        sbProgress = findViewById(R.id.sb_progress);
+        tvElapsedTime = findViewById(R.id.tv_elapsed_time);
+        tvRemainingTime = findViewById(R.id.tv_remaining_time);
+
+        sbProgress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) {
+                    int duration = seekBar.getMax();
+                    tvElapsedTime.setText(formatTime(progress));
+                    tvRemainingTime.setText("-" + formatTime(duration - progress));
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                isUserSeeking = true;
+            }
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                if (serviceBound) {
+                    musicService.seekTo(seekBar.getProgress());
+                }
+                isUserSeeking = false;
+            }
+        });
 
         playlistAdapter = new ArrayAdapter<>(this, R.layout.item_track, displayNames);
         lvPlaylist.setAdapter(playlistAdapter);
@@ -151,10 +195,12 @@ public class MainActivity extends AppCompatActivity {
         requestNotificationPermission();
         requestBatteryOptimizationExemption();
         startAndBindService();
+        progressHandler.postDelayed(progressRunnable, 500);
     }
 
     @Override
     protected void onDestroy() {
+        progressHandler.removeCallbacks(progressRunnable);
         if (serviceBound) {
             unbindService(serviceConnection);
             serviceBound = false;
@@ -287,8 +333,14 @@ public class MainActivity extends AppCompatActivity {
             lvPlaylist.smoothScrollToPosition(index);
         }
         if (serviceBound) {
-            btnPlayPause.setText(musicService.isPlaying() ? "\u23F8" : "\u25B6");
+            btnPlayPause.setImageResource(musicService.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
             updateCoverArt();
+            // Reset progress bar for the new track
+            int duration = musicService.getDuration();
+            sbProgress.setMax(duration > 0 ? duration : 0);
+            sbProgress.setProgress(0);
+            tvElapsedTime.setText(formatTime(0));
+            tvRemainingTime.setText("-" + formatTime(duration));
         }
     }
 
@@ -303,6 +355,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateShuffleButton(boolean shuffleOn) {
-        btnShuffle.setText(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off);
+        btnShuffle.setImageResource(shuffleOn ? R.drawable.ic_shuffle_on : R.drawable.ic_shuffle_off);
+        btnShuffle.setContentDescription(getString(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off));
+    }
+
+    private void updateProgressBar() {
+        if (!serviceBound) return;
+        int duration = musicService.getDuration();
+        int position = musicService.getCurrentPosition();
+        if (duration > 0) {
+            sbProgress.setMax(duration);
+            sbProgress.setProgress(position);
+            tvElapsedTime.setText(formatTime(position));
+            tvRemainingTime.setText("-" + formatTime(duration - position));
+        }
+    }
+
+    private String formatTime(int ms) {
+        int totalSeconds = ms / 1000;
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return String.format(java.util.Locale.US, "%d:%02d", minutes, seconds);
     }
 }

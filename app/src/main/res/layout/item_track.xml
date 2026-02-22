@@ -6,4 +6,5 @@
     android:textSize="14sp"
     android:maxLines="1"
     android:ellipsize="end"
-    android:textColor="@color/text_primary" />
+    android:textColor="@color/text_primary"
+    android:background="@drawable/list_item_selector" />
