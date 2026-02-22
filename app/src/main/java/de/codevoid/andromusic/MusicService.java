@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MusicService extends Service {
     private static final String TAG = "MusicService";
@@ -60,6 +62,8 @@ public class MusicService extends Service {
     private String currentArtist;
     private String currentAlbum;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = this::onAudioFocusChange;
+
+    private final ExecutorService metadataExecutor = Executors.newSingleThreadExecutor();
 
     private final Handler saveHandler = new Handler(Looper.getMainLooper());
     private final Runnable saveRunnable = new Runnable() {
@@ -129,7 +133,11 @@ public class MusicService extends Service {
     public void onDestroy() {
         saveState();
         saveHandler.removeCallbacks(saveRunnable);
+        metadataExecutor.shutdownNow();
         if (mediaPlayer != null) {
+            mediaPlayer.setOnCompletionListener(null);
+            mediaPlayer.setOnErrorListener(null);
+            mediaPlayer.setOnPreparedListener(null);
             mediaPlayer.release();
             mediaPlayer = null;
         }
@@ -311,14 +319,26 @@ public class MusicService extends Service {
     private void prepareAndPlay(int seekPosition) {
         if (playlist.isEmpty()) return;
         if (mediaPlayer != null) {
+            mediaPlayer.setOnCompletionListener(null);
+            mediaPlayer.setOnErrorListener(null);
+            mediaPlayer.setOnPreparedListener(null);
             mediaPlayer.release();
             mediaPlayer = null;
         }
         try {
-            String filePath = playlist.get(currentIndex);
+            final String filePath = playlist.get(currentIndex);
+            final int preparedIndex = currentIndex;
 
-            // Extract cover art and metadata for the new track
-            extractTrackInfo(filePath);
+            // Extract cover art and metadata on a background thread
+            metadataExecutor.execute(() -> {
+                extractTrackInfo(filePath);
+                saveHandler.post(() -> {
+                    if (currentIndex == preparedIndex) {
+                        updateMetadata();
+                        updateNotification();
+                    }
+                });
+            });
 
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
@@ -328,6 +348,7 @@ public class MusicService extends Service {
                     .build());
             mediaPlayer.setDataSource(filePath);
             mediaPlayer.setOnPreparedListener(mp -> {
+                if (currentIndex != preparedIndex) return;
                 if (seekPosition > 0) mp.seekTo(seekPosition);
                 if (requestAudioFocus()) {
                     mp.start();
@@ -343,17 +364,25 @@ public class MusicService extends Service {
                     saveHandler.postDelayed(saveRunnable, 5000);
                 }
             });
-            // On track completion, advance to next (wraps around via next())
-            mediaPlayer.setOnCompletionListener(mp -> next());
+            mediaPlayer.setOnCompletionListener(mp -> {
+                if (currentIndex == preparedIndex) {
+                    next();
+                }
+            });
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 Log.e(TAG, "MediaPlayer error: " + what + ", " + extra);
-                next();
+                if (currentIndex == preparedIndex) {
+                    next();
+                }
                 return true;
             });
             mediaPlayer.prepareAsync();
         } catch (IOException e) {
             Log.e(TAG, "Error preparing media player", e);
-            next();
+            isPlaying = false;
+            if (trackChangeListener != null) {
+                trackChangeListener.onPlayStateChanged(false);
+            }
         }
     }
 

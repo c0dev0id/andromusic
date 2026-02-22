@@ -16,10 +16,11 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.DocumentsContract;
 import android.provider.Settings;
-import android.widget.ArrayAdapter;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,6 +30,9 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -49,8 +53,8 @@ public class MainActivity extends AppCompatActivity {
     private SeekBar sbProgress;
     private TextView tvElapsedTime;
     private TextView tvRemainingTime;
-    private ListView lvPlaylist;
-    private ArrayAdapter<String> playlistAdapter;
+    private RecyclerView lvPlaylist;
+    private PlaylistAdapter playlistAdapter;
     private List<String> displayNames = new ArrayList<>();
     private List<String> filePaths = new ArrayList<>();
 
@@ -157,15 +161,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        playlistAdapter = new ArrayAdapter<>(this, R.layout.item_track, displayNames);
-        lvPlaylist.setAdapter(playlistAdapter);
-        lvPlaylist.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-
-        lvPlaylist.setOnItemClickListener((parent, view, position, id) -> {
+        playlistAdapter = new PlaylistAdapter(displayNames, position -> {
             if (serviceBound) {
                 musicService.playAt(position);
             }
         });
+        lvPlaylist.setLayoutManager(new LinearLayoutManager(this));
+        lvPlaylist.addItemDecoration(new DividerItemDecoration(this, DividerItemDecoration.VERTICAL));
+        lvPlaylist.setAdapter(playlistAdapter);
 
         btnPlayPause.setOnClickListener(v -> {
             if (serviceBound) {
@@ -328,8 +331,8 @@ public class MainActivity extends AppCompatActivity {
     private void updateUI(int index) {
         if (index >= 0 && index < displayNames.size()) {
             tvCurrentTrack.setText(displayNames.get(index));
-            lvPlaylist.setItemChecked(index, true);
-            lvPlaylist.smoothScrollToPosition(index);
+            playlistAdapter.setSelectedIndex(index);
+            lvPlaylist.scrollToPosition(index);
         }
         if (serviceBound) {
             btnPlayPause.setImageResource(musicService.isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play);
@@ -375,5 +378,55 @@ public class MainActivity extends AppCompatActivity {
         int minutes = totalSeconds / 60;
         int seconds = totalSeconds % 60;
         return String.format(java.util.Locale.US, "%d:%02d", minutes, seconds);
+    }
+
+    private static class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.ViewHolder> {
+
+        interface OnItemClickListener {
+            void onItemClick(int position);
+        }
+
+        private final List<String> names;
+        private final OnItemClickListener listener;
+        private int selectedIndex = -1;
+
+        PlaylistAdapter(List<String> names, OnItemClickListener listener) {
+            this.names = names;
+            this.listener = listener;
+        }
+
+        void setSelectedIndex(int index) {
+            int previous = selectedIndex;
+            selectedIndex = index;
+            if (previous >= 0) notifyItemChanged(previous);
+            if (selectedIndex >= 0) notifyItemChanged(selectedIndex);
+        }
+
+        @Override
+        public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_track, parent, false);
+            return new ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(ViewHolder holder, int position) {
+            holder.textView.setText(names.get(position));
+            holder.itemView.setActivated(position == selectedIndex);
+            holder.itemView.setOnClickListener(v -> listener.onItemClick(position));
+        }
+
+        @Override
+        public int getItemCount() {
+            return names.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            final TextView textView;
+            ViewHolder(View itemView) {
+                super(itemView);
+                textView = (TextView) itemView;
+            }
+        }
     }
 }
