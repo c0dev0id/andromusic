@@ -18,6 +18,23 @@ import androidx.test.core.app.ApplicationProvider;
 public class NotificationPermissionTest {
 
     @Test
+    public void manifest_declaresPostNotificationsPermission() throws Exception {
+        PackageManager pm = ApplicationProvider.getApplicationContext().getPackageManager();
+        PackageInfo packageInfo = pm.getPackageInfo(
+                ApplicationProvider.getApplicationContext().getPackageName(),
+                PackageManager.GET_PERMISSIONS);
+
+        boolean found = false;
+        for (String perm : packageInfo.requestedPermissions) {
+            if (Manifest.permission.POST_NOTIFICATIONS.equals(perm)) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue("AndroidManifest.xml should declare POST_NOTIFICATIONS permission", found);
+    }
+
+    @Test
     public void manifest_declaresForegroundServicePermission() throws Exception {
         PackageManager pm = ApplicationProvider.getApplicationContext().getPackageManager();
         PackageInfo packageInfo = pm.getPackageInfo(

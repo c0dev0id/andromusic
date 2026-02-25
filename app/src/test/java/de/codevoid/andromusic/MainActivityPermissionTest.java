@@ -7,8 +7,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowActivity;
+import org.robolectric.shadows.ShadowApplication;
 
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
@@ -22,6 +24,10 @@ public class MainActivityPermissionTest {
     @Test
     public void onCreate_requestsAudioPermission() {
         Application app = ApplicationProvider.getApplicationContext();
+
+        // Pre-grant POST_NOTIFICATIONS so it doesn't supersede the audio permission request
+        ShadowApplication shadowApp = Shadows.shadowOf(app);
+        shadowApp.grantPermissions(Manifest.permission.POST_NOTIFICATIONS);
 
         MainActivity activity = Robolectric.buildActivity(MainActivity.class)
                 .create()
