@@ -20,10 +20,8 @@ import androidx.test.core.app.ApplicationProvider;
 public class MainActivityPermissionTest {
 
     @Test
-    public void onCreate_requestsNotificationPermission() {
-        // Grant audio permission so it doesn't interfere
+    public void onCreate_requestsAudioPermission() {
         Application app = ApplicationProvider.getApplicationContext();
-        shadowOf(app).grantPermissions(Manifest.permission.READ_MEDIA_AUDIO);
 
         MainActivity activity = Robolectric.buildActivity(MainActivity.class)
                 .create()
@@ -31,21 +29,21 @@ public class MainActivityPermissionTest {
 
         ShadowActivity shadowActivity = shadowOf(activity);
 
-        // Check that POST_NOTIFICATIONS permission was requested during onCreate
-        // getLastRequestedPermission returns permissions from the most recent requestPermissions call
+        // Check that READ_MEDIA_AUDIO permission was requested during onCreate
         ShadowActivity.PermissionsRequest request = shadowActivity.getLastRequestedPermission();
 
-        boolean notificationPermissionRequested = false;
+        boolean audioPermissionRequested = false;
         if (request != null) {
             for (String perm : request.requestedPermissions) {
-                if (Manifest.permission.POST_NOTIFICATIONS.equals(perm)) {
-                    notificationPermissionRequested = true;
+                if (Manifest.permission.READ_MEDIA_AUDIO.equals(perm) ||
+                        Manifest.permission.READ_EXTERNAL_STORAGE.equals(perm)) {
+                    audioPermissionRequested = true;
                     break;
                 }
             }
         }
 
-        assertTrue("MainActivity should request POST_NOTIFICATIONS permission on API 33+",
-                notificationPermissionRequested);
+        assertTrue("MainActivity should request audio read permission on create",
+                audioPermissionRequested);
     }
 }
