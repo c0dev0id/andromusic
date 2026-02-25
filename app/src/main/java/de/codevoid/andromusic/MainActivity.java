@@ -25,6 +25,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -58,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView lvPlaylist;
     private PlaylistAdapter playlistAdapter;
     private List<String> displayNames = new ArrayList<>();
-    private List<String> filePaths = new ArrayList<>();
 
     private boolean isUserSeeking = false;
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
@@ -218,10 +218,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        checkAndRequestPermissions();
-        requestNotificationPermission();
-        requestBatteryOptimizationExemption();
-        startAndBindService();
+        if (!checkAndRequestPermissions()) {
+            // Audio permission requested; wait for result in onRequestPermissionsResult
+        } else {
+            onAudioPermissionResolved();
+        }
         progressHandler.postDelayed(progressRunnable, 500);
 
         overlayView = findViewById(R.id.overlay_container);
@@ -260,6 +261,13 @@ public class MainActivity extends AppCompatActivity {
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
+    private void onAudioPermissionResolved() {
+        startAndBindService();
+        if (!requestNotificationPermission()) {
+            requestBatteryOptimizationExemption();
+        }
+    }
+
     private boolean checkAndRequestPermissions() {
         String permission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 ? Manifest.permission.READ_MEDIA_AUDIO
@@ -271,15 +279,17 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void requestNotificationPermission() {
+    private boolean requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.POST_NOTIFICATIONS},
                         NOTIFICATION_PERMISSION_REQUEST_CODE);
+                return true;
             }
         }
+        return false;
     }
 
     // Battery optimization exemption is needed for continuous background music playback
@@ -303,6 +313,9 @@ public class MainActivity extends AppCompatActivity {
                 String savedDir = prefsManager.loadDirectory();
                 if (savedDir != null) scanAndLoad(savedDir);
             }
+            onAudioPermissionResolved();
+        } else if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            requestBatteryOptimizationExemption();
         }
     }
 
@@ -336,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.w("MainActivity", "Failed to resolve URI path", e);
         }
         return null;
     }
@@ -357,7 +370,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadPlaylistIntoUI(List<String> paths) {
-        filePaths = new ArrayList<>(paths);
         displayNames.clear();
         for (String path : paths) {
             String name = new File(path).getName();

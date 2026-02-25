@@ -2,6 +2,7 @@ package de.codevoid.andromusic;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -49,7 +50,7 @@ public class PreferencesManager {
                 playlist.add(array.getString(i));
             }
         } catch (JSONException e) {
-            e.printStackTrace();
+            Log.w("PreferencesManager", "Failed to parse playlist JSON", e);
         }
         return playlist;
     }

@@ -519,7 +519,4 @@ public class MusicService extends Service {
     public void setOnTrackChangeListener(OnTrackChangeListener listener) {
         this.trackChangeListener = listener;
     }
-    public MediaSessionCompat.Token getSessionToken() {
-        return mediaSession.getSessionToken();
-    }
 }
