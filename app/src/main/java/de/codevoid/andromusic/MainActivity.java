@@ -42,6 +42,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 101;
 
     private MusicService musicService;
     private boolean serviceBound = false;
@@ -218,6 +219,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         checkAndRequestPermissions();
+        requestNotificationPermission();
         requestBatteryOptimizationExemption();
         startAndBindService();
         progressHandler.postDelayed(progressRunnable, 500);
@@ -267,6 +269,17 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         return true;
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
     }
 
     // Battery optimization exemption is needed for continuous background music playback
