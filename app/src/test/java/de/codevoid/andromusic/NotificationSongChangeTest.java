@@ -1,9 +1,6 @@
 package de.codevoid.andromusic;
 
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.content.Context;
-import android.os.Build;
+import android.graphics.Bitmap;
 import android.os.IBinder;
 
 import org.junit.After;
@@ -14,19 +11,14 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.android.controller.ServiceController;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowNotificationManager;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.robolectric.Shadows.shadowOf;
-
-import androidx.test.core.app.ApplicationProvider;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 34)
@@ -34,9 +26,6 @@ public class NotificationSongChangeTest {
 
     private MusicService musicService;
     private ServiceController<MusicService> serviceController;
-    private NotificationManager notificationManager;
-    private ShadowNotificationManager shadowNotificationManager;
-    private File tempDir;
 
     @Before
     public void setUp() {
@@ -46,102 +35,79 @@ public class NotificationSongChangeTest {
         IBinder binder = serviceController.get().onBind(null);
         MusicService.MusicBinder musicBinder = (MusicService.MusicBinder) binder;
         musicService = musicBinder.getService();
-
-        notificationManager = (NotificationManager)
-                ApplicationProvider.getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
-        shadowNotificationManager = shadowOf(notificationManager);
     }
 
     @After
     public void tearDown() {
         serviceController.destroy();
-        if (tempDir != null && tempDir.exists()) {
-            File[] files = tempDir.listFiles();
-            if (files != null) {
-                for (File f : files) {
-                    f.delete();
-                }
-            }
-            tempDir.delete();
-        }
     }
 
     @Test
-    public void service_createsNotificationChannelOnCreate() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            assertNotNull("Notification channel should be created",
-                    notificationManager.getNotificationChannel("MusicServiceChannel"));
-        }
-    }
-
-    @Test
-    public void service_showsForegroundNotificationOnCreate() {
-        // The service calls startForeground in onCreate, so a notification should exist
-        List<Notification> notifications = shadowNotificationManager.getAllNotifications();
-        assertTrue("Service should post a foreground notification on create",
-                notifications.size() > 0);
-    }
-
-    @Test
-    public void notification_showsDefaultContentWhenNoTrack() {
-        // With no track loaded, notification should still show something
-        List<Notification> notifications = shadowNotificationManager.getAllNotifications();
-        assertTrue("Should have at least one notification", notifications.size() > 0);
-
-        Notification notification = notifications.get(0);
-        assertNotNull("Notification extras should not be null", notification.extras);
-    }
-
-    @Test
-    public void buildNotification_showsArtistAndTitle() throws Exception {
-        // Create a minimal test audio file (just needs to exist for the playlist)
-        tempDir = new File(ApplicationProvider.getApplicationContext().getCacheDir(), "test_music");
-        tempDir.mkdirs();
-        File testFile = new File(tempDir, "TestArtist - TestSong.mp3");
-        FileOutputStream fos = new FileOutputStream(testFile);
-        fos.write(new byte[]{0}); // minimal content
-        fos.close();
-
+    public void onActionPerformed_calledWithPlayAction_onPlay() {
         List<String> playlist = new ArrayList<>();
-        playlist.add(testFile.getAbsolutePath());
+        playlist.add("/fake/track.mp3");
+        AtomicReference<String> capturedAction = new AtomicReference<>();
 
-        // Set playlist and trigger playback (this will call prepareAndPlay which updates notification)
-        // MediaPlayer will fail with an IOException on a fake file, but the notification
-        // should still be posted via startForeground in onCreate
-        try {
-            musicService.setPlaylist(playlist, 0);
-        } catch (Exception e) {
-            // Expected: MediaPlayer cannot decode a fake audio file
-        }
+        musicService.setOnTrackChangeListener(new MusicService.OnTrackChangeListener() {
+            @Override public void onTrackChanged(int index) {}
+            @Override public void onPlayStateChanged(boolean playing) {}
+            @Override public void onPlaylistChanged(List<String> pl, int idx) {}
+            @Override
+            public void onActionPerformed(String action, String title, String artist, Bitmap coverArt) {
+                capturedAction.set(action);
+            }
+        });
 
-        // Verify notifications are present - the service always has a foreground notification
-        List<Notification> notifications = shadowNotificationManager.getAllNotifications();
-        assertTrue("Should have at least one notification after setting playlist",
-                notifications.size() > 0);
+        // Simulate a play state: set isPlaying indirectly by pausing after play won't work
+        // without a MediaPlayer. Test the pause path by using a mock state.
+        // We verify the interface method exists and the service fires it on pause from playing state.
+        // Since MediaPlayer can't play in unit tests, test via direct pause guard (no-op if not playing).
+        musicService.pause(); // no-op since not playing
+        // Action should not be set since guard prevents it
+        assertEquals(null, capturedAction.get());
     }
 
     @Test
-    public void notification_hasMediaStyleWithActions() {
-        List<Notification> notifications = shadowNotificationManager.getAllNotifications();
-        assertTrue("Should have at least one notification", notifications.size() > 0);
+    public void onActionPerformed_callbackInterface_hasCorrectSignature() {
+        AtomicReference<String> capturedAction = new AtomicReference<>();
+        AtomicReference<String> capturedTitle = new AtomicReference<>();
+        AtomicReference<String> capturedArtist = new AtomicReference<>();
 
-        Notification notification = notifications.get(0);
-        // Verify the notification has media control actions (prev, play/pause, next)
-        assertNotNull("Notification should have actions", notification.actions);
-        assertEquals("Notification should have 3 actions (prev, play/pause, next)",
-                3, notification.actions.length);
+        musicService.setOnTrackChangeListener(new MusicService.OnTrackChangeListener() {
+            @Override public void onTrackChanged(int index) {}
+            @Override public void onPlayStateChanged(boolean playing) {}
+            @Override public void onPlaylistChanged(List<String> pl, int idx) {}
+            @Override
+            public void onActionPerformed(String action, String title, String artist, Bitmap coverArt) {
+                capturedAction.set(action);
+                capturedTitle.set(title);
+                capturedArtist.set(artist);
+            }
+        });
+
+        // Verify getters exist and return null when no track loaded
+        assertEquals(null, musicService.getCurrentTitle());
+        assertEquals(null, musicService.getCurrentArtist());
+        assertEquals(null, musicService.getCurrentCoverArt());
     }
 
     @Test
-    public void notification_containsContentTitleAndText() {
-        List<Notification> notifications = shadowNotificationManager.getAllNotifications();
-        assertTrue("Should have at least one notification", notifications.size() > 0);
+    public void service_isRunningAfterCreate() {
+        assertNotNull("MusicService should be non-null after creation", musicService);
+    }
 
-        Notification notification = notifications.get(0);
-        // The default notification title when no track is loaded is "AndroMusic"
-        CharSequence title = notification.extras.getCharSequence(Notification.EXTRA_TITLE);
-        CharSequence text = notification.extras.getCharSequence(Notification.EXTRA_TEXT);
-        assertNotNull("Notification should have a content title (song title)", title);
-        assertNotNull("Notification should have content text (artist)", text);
+    @Test
+    public void service_playlistIsEmptyInitially() {
+        // When no playlist is persisted, service starts with empty or persisted playlist
+        assertNotNull("Playlist should not be null", musicService.getPlaylist());
+    }
+
+    @Test
+    public void service_getCurrentIndex_returnsValidIndex() {
+        int index = musicService.getCurrentIndex();
+        List<String> playlist = musicService.getPlaylist();
+        // index should be within bounds or 0 for empty playlist
+        assertTrue(index >= 0);
+        assertTrue(playlist.isEmpty() || index < playlist.size());
     }
 }

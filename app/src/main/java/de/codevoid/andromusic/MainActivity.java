@@ -19,6 +19,8 @@ import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
@@ -40,7 +42,6 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 100;
-    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 101;
 
     private MusicService musicService;
     private boolean serviceBound = false;
@@ -60,6 +61,15 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isUserSeeking = false;
     private final Handler progressHandler = new Handler(Looper.getMainLooper());
+
+    private View overlayView;
+    private ImageView overlayIcon;
+    private TextView overlayAction;
+    private TextView overlayInfo;
+    private final Handler overlayHandler = new Handler(Looper.getMainLooper());
+    private Runnable overlayHideRunnable;
+    private Animation fadeIn;
+    private Animation fadeOut;
     private final Runnable progressRunnable = new Runnable() {
         @Override
         public void run() {
@@ -91,6 +101,10 @@ public class MainActivity extends AppCompatActivity {
                         loadPlaylistIntoUI(playlist);
                         updateUI(currentIndex);
                     });
+                }
+                @Override
+                public void onActionPerformed(String action, String title, String artist, Bitmap coverArt) {
+                    runOnUiThread(() -> showOverlay(action, title, artist, coverArt));
                 }
             });
             loadPlaylistIntoUI(musicService.getPlaylist());
@@ -204,15 +218,29 @@ public class MainActivity extends AppCompatActivity {
         });
 
         checkAndRequestPermissions();
-        requestNotificationPermission();
         requestBatteryOptimizationExemption();
         startAndBindService();
         progressHandler.postDelayed(progressRunnable, 500);
+
+        overlayView = findViewById(R.id.overlay_container);
+        overlayIcon = overlayView.findViewById(R.id.overlay_cover_art);
+        overlayAction = overlayView.findViewById(R.id.overlay_action);
+        overlayInfo = overlayView.findViewById(R.id.overlay_info);
+        fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in);
+        fadeOut = AnimationUtils.loadAnimation(this, R.anim.fade_out);
+        fadeOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override public void onAnimationStart(Animation animation) {}
+            @Override public void onAnimationEnd(Animation animation) {
+                overlayView.setVisibility(View.GONE);
+            }
+            @Override public void onAnimationRepeat(Animation animation) {}
+        });
     }
 
     @Override
     protected void onDestroy() {
         progressHandler.removeCallbacks(progressRunnable);
+        overlayHandler.removeCallbacksAndMessages(null);
         if (serviceBound) {
             unbindService(serviceConnection);
             serviceBound = false;
@@ -239,17 +267,6 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         return true;
-    }
-
-    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        NOTIFICATION_PERMISSION_REQUEST_CODE);
-            }
-        }
     }
 
     // Battery optimization exemption is needed for continuous background music playback
@@ -369,6 +386,27 @@ public class MainActivity extends AppCompatActivity {
     private void updateShuffleButton(boolean shuffleOn) {
         btnShuffle.setImageResource(shuffleOn ? R.drawable.ic_shuffle_on : R.drawable.ic_shuffle_off);
         btnShuffle.setContentDescription(getString(shuffleOn ? R.string.shuffle_on : R.string.shuffle_off));
+    }
+
+    private void showOverlay(String action, String title, String artist, Bitmap coverArt) {
+        if (overlayHideRunnable != null) {
+            overlayHandler.removeCallbacks(overlayHideRunnable);
+        }
+        overlayAction.setText(action != null ? action : "");
+        String info = (artist != null ? artist : "") +
+                (artist != null && title != null ? " \u2014 " : "") +
+                (title != null ? title : "");
+        overlayInfo.setText(info);
+        if (coverArt != null) {
+            overlayIcon.setImageBitmap(coverArt);
+        } else {
+            overlayIcon.setImageResource(android.R.drawable.ic_menu_gallery);
+        }
+        overlayView.clearAnimation();
+        overlayView.setVisibility(View.VISIBLE);
+        overlayView.startAnimation(fadeIn);
+        overlayHideRunnable = () -> overlayView.startAnimation(fadeOut);
+        overlayHandler.postDelayed(overlayHideRunnable, 1300);
     }
 
     private void updateProgressBar() {
